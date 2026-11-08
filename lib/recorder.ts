@@ -35,6 +35,15 @@ function getMethod(request: Request) {
   return request.method || 'GET'
 }
 
+function getResponseHeaders(headers: Headers) {
+  const result: Record<string, string | string[]> = Object.fromEntries(
+    headers.entries(),
+  )
+  const setCookie = headers.getSetCookie()
+  if (setCookie.length > 1) result['set-cookie'] = setCookie
+  return result
+}
+
 function getBodyFromChunks(chunks: Buffer[], headers?: Record<string, any>) {
   // If we have headers and there is content-encoding it means that the body
   // shouldn't be merged but instead persisted as an array of hex strings so
@@ -79,7 +88,7 @@ async function generateRequestAndResponseObject(
 ) {
   const { body, isUtf8Representable } = getBodyFromChunks(
     [Buffer.from(await response.arrayBuffer())],
-    Object.fromEntries(response.headers.entries()),
+    getResponseHeaders(response.headers),
   )
   const url = new URL(request.url)
   const reqheaders = Object.fromEntries(request.headers.entries())
@@ -91,7 +100,7 @@ async function generateRequestAndResponseObject(
     body: getBodyFromChunks([Buffer.from(await request.arrayBuffer())]).body,
     status: response.status,
     response: body,
-    rawHeaders: Object.fromEntries(response.headers.entries()),
+    rawHeaders: getResponseHeaders(response.headers),
     reqheaders: Object.keys(reqheaders).length > 0 ? reqheaders : undefined,
     // When content-encoding is enabled, isUtf8Representable is `undefined`,
     // so we explicitly check for `false`.
@@ -156,7 +165,7 @@ async function generateRequestAndResponse(
 
   const statusCode = String(response.status)
   const stringifiedResponseBody = JSON.stringify(responseBody)
-  const headers = inspect(Object.fromEntries(response.headers.entries()))
+  const headers = inspect(getResponseHeaders(response.headers))
   lines.push(`  .reply(${statusCode}, ${stringifiedResponseBody}, ${headers});`)
 
   return lines.join('\n')

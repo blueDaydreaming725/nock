@@ -531,6 +531,57 @@ describe('Native Fetch', () => {
   })
 
   describe('recording', () => {
+    it('records and replays multiple Set-Cookie headers', async () => {
+      const cookies = ['session=abc; Path=/; HttpOnly', 'csrf=xyz; Path=/']
+      const { origin } = await startHttpServer((request, response) => {
+        response.setHeader('Set-Cookie', cookies)
+        response.end('ok')
+      })
+
+      nock.restore()
+      nock.recorder.clear()
+      nock.recorder.rec({ dont_print: true, output_objects: true })
+
+      const response = await fetch(origin)
+      expect(response.headers.getSetCookie()).to.deep.equal(cookies)
+
+      nock.restore()
+      const recorded = nock.recorder.play()
+      nock.recorder.clear()
+      nock.activate()
+
+      expect(recorded).to.have.lengthOf(1)
+      expect(recorded[0].rawHeaders['set-cookie']).to.deep.equal(cookies)
+      nock.define(recorded)
+
+      const replayedResponse = await fetch(origin)
+      expect(replayedResponse.headers.getSetCookie()).to.deep.equal(cookies)
+    })
+
+    it('generates code with multiple Set-Cookie headers', async () => {
+      const cookies = ['session=abc; Path=/; HttpOnly', 'csrf=xyz; Path=/']
+      const { origin } = await startHttpServer((request, response) => {
+        response.setHeader('Set-Cookie', cookies)
+        response.end('ok')
+      })
+
+      nock.restore()
+      nock.recorder.clear()
+      nock.recorder.rec({ dont_print: true, output_objects: false })
+
+      await fetch(origin)
+
+      nock.restore()
+      const recorded = nock.recorder.play()
+      nock.recorder.clear()
+      nock.activate()
+
+      expect(recorded).to.have.lengthOf(1)
+      expect(recorded[0]).to.include("'set-cookie': [")
+      expect(recorded[0]).to.include(cookies[0])
+      expect(recorded[0]).to.include(cookies[1])
+    })
+
     it('records and replays gzipped nocks correctly', async () => {
       const exampleText = '<html><body>example</body></html>'
 
